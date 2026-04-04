@@ -9,13 +9,13 @@ export function ManifestoSolution() {
         </Reveal>
         <div className="manifesto-sec__body">
           <Reveal delay={0.2}>
-            <p>A Avello é sua fonte inteligente de verdade em tempo real que elimina as lutas culturais, financeiras e operacionais de ferramentas fragmentadas.</p>
+            <p>A Avello conecta seus sistemas nos bastidores. CRM, WhatsApp, ERP, planilhas — tudo conversando em tempo real, sem você precisar tocar.</p>
           </Reveal>
           <Reveal delay={0.4}>
-            <p>Conectamos seus sistemas nos bastidores e reunimos exatamente o conhecimento que você precisa em agentes autônomos que trabalham 24 horas.</p>
+            <p>Nossos agentes de IA atendem leads 24h, qualificam contatos e disparam follow-ups. Sem pausar. Sem esquecer. Sem férias.</p>
           </Reveal>
           <Reveal delay={0.6}>
-            <p>Simplesmente peça à Avello a resposta que avança seu trabalho e te ajuda a tomar decisões melhores com mais confiança.</p>
+            <p>Dashboards em tempo real mostram exatamente onde está o dinheiro, onde está o gargalo, e o que fazer agora.</p>
           </Reveal>
         </div>
       </div>

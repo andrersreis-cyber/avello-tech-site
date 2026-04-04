@@ -9,21 +9,22 @@ export function HeroSection() {
         <RevealText className="hero__title" delay={0.6}>automático.</RevealText>
       </h1>
       <Reveal delay={1}>
-        <div className="hero__sub">Automação com IA que trabalha enquanto você dorme.</div>
+        <div className="hero__sub">Agentes de IA, integrações e dashboards que trabalham enquanto você dorme.</div>
       </Reveal>
       <Reveal delay={1.2}>
         <p className="hero__body">
-          Conecte-se ao poder da inteligência artificial. A Avello cria agentes autônomos,
-          integrações e dashboards que eliminam trabalho manual e aceleram suas decisões.
+          A Avello constrói automações inteligentes que eliminam 30 horas semanais
+          de trabalho manual. Sem contratar. Sem treinar. Sem esperar.
         </p>
       </Reveal>
       <Reveal className="hero__cta" delay={1.4}>
         <button
-          className="av-btn"
+          className="av-btn av-btn--primary"
           onClick={() => document.getElementById('contato')?.scrollIntoView({ behavior: 'smooth' })}
         >
-          Quero um diagnóstico gratuito
+          Agendar diagnóstico gratuito
         </button>
+        <a className="av-btn" href="#solucoes" style={{marginLeft: 16}}>Ver como funciona</a>
       </Reveal>
     </section>
   )

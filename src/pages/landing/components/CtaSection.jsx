@@ -20,7 +20,8 @@ export function CtaSection() {
   return (
     <section id="contato" className="cta">
       <Reveal>
-        <h2 className="cta__title">Sua empresa tem a resposta. Peça à Avello para encontrá-la.</h2>
+        <h2 className="cta__title">Descubra quanto sua operação manual está te custando.</h2>
+        <p className="cta__sub">Diagnóstico gratuito. 30 minutos. Sem compromisso.</p>
       </Reveal>
       <Reveal delay={0.3}>
         {done ? (
