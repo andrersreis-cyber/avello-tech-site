@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-// Bloom removed — was causing depth test reset that created half-moon effect
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import earthTextureUrl from '../../../assets/earth_texture.png'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const LAND_COUNT = 8000
-const OCEAN_COUNT = 3000
+const LAND_COUNT  = 14000
+const OCEAN_COUNT = 3500
 const SCATTER_COUNT = 600
 const TOTAL = LAND_COUNT + OCEAN_COUNT + SCATTER_COUNT
 
@@ -21,38 +21,28 @@ const PALETTE_OCEAN = [
   [0.3, 0.3, 0.35],[0.2, 0.2, 0.25],
 ]
 
-/* ── World map ── */
-function buildWorldMap() {
-  const W = 360, H = 180, cv = document.createElement('canvas')
+/* ── World map via PNG texture (Natural Earth 50m, 4096×2048) ── */
+function buildWorldMap(img) {
+  // Usar resolução reduzida para lookup rápido (1024×512 é suficiente)
+  const W = 1024, H = 512
+  const cv = document.createElement('canvas')
   cv.width = W; cv.height = H
   const c = cv.getContext('2d')
-  c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.fillStyle = '#fff'
-  const X = lo => ((lo+180)/360)*W, Y = la => ((90-la)/180)*H
-  const poly = pts => { c.beginPath(); pts.forEach(([lo,la],i) => i ? c.lineTo(X(lo),Y(la)) : c.moveTo(X(lo),Y(la))); c.closePath(); c.fill() }
-  poly([[-52,47],[-60,46],[-64,50],[-64,62],[-60,63],[-60,68],[-65,72],[-65,76],[-80,80],[-120,80],[-140,70],[-168,71],[-168,65],[-165,61],[-155,59],[-140,60],[-130,54],[-125,50],[-124,48],[-122,38],[-117,34],[-117,32],[-110,23],[-104,19],[-99,16],[-95,16],[-92,14],[-90,20],[-88,20],[-80,25],[-75,35],[-76,38],[-75,44],[-67,44]])
-  poly([[-54,72],[-44,60],[-18,60],[-12,70],[-18,84],[-44,84]])
-  poly([[-35,5],[-38,-8],[-55,-38],[-65,-55],[-70,-55],[-75,-20],[-80,-10],[-80,0],[-70,12],[-60,10],[-50,8]])
-  poly([[-10,36],[-5,45],[-5,48],[-2,50],[0,62],[-5,57],[5,57],[10,63],[15,68],[20,68],[25,65],[30,60],[37,48],[35,42],[40,42],[35,37],[25,36],[20,36],[15,38],[10,37],[3,37],[0,36],[-5,36],[-10,36]])
-  poly([[5,57],[15,57],[18,60],[22,65],[26,70],[20,70],[15,68],[10,63]])
-  poly([[-6,50],[-1,50],[-1,59],[-6,59]])
-  poly([[-18,16],[-18,-5],[-18,-35],[0,-30],[15,-35],[18,-35],[35,-30],[43,-12],[51,12],[42,12],[35,25],[25,37],[10,37],[0,37],[-10,35]])
-  poly([[25,36],[25,70],[40,70],[60,72],[75,75],[100,70],[120,70],[140,70],[168,68],[170,60],[155,55],[145,45],[135,40],[130,35],[120,20],[105,12],[100,5],[97,8],[97,20],[90,25],[80,25],[75,20],[65,22],[60,20],[55,12],[42,12],[40,38],[40,42],[35,37]])
-  poly([[36,30],[57,22],[60,22],[55,12],[42,12],[36,22]])
-  poly([[130,31],[138,33],[140,38],[140,42],[134,44]])
-  poly([[113,-12],[132,-12],[142,-15],[150,-23],[148,-30],[138,-35],[131,-34],[115,-34],[113,-25],[115,-20]])
-  poly([[165,-34],[175,-34],[178,-42],[173,-46],[167,-46]])
-  return { W, H, data: c.getImageData(0,0,W,H).data }
+  c.drawImage(img, 0, 0, W, H)
+  return { W, H, data: c.getImageData(0, 0, W, H).data }
 }
 
 function isLand(wm, lon, lat) {
-  const px = Math.floor(((lon+180)/360)*wm.W), py = Math.floor(((90-lat)/180)*wm.H)
-  return wm.data[(py*wm.W+px)*4] > 128
+  const px = Math.min(wm.W - 1, Math.max(0, Math.floor(((lon + 180) / 360) * wm.W)))
+  const py = Math.min(wm.H - 1, Math.max(0, Math.floor(((90 - lat) / 180) * wm.H)))
+  return wm.data[(py * wm.W + px) * 4] > 128
 }
 
 function sampleSpherePoints(count, radius, wm, landOnly) {
-  // Fibonacci sphere for uniform spacing (no gaps, no clusters)
+  // Fibonacci sphere para espaçamento uniforme (sem gaps, sem clusters)
   const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-  const totalSamples = count * 8
+  // Amostrar muito mais pontos do que o necessário para compensar a filtragem terra/oceano
+  const totalSamples = count * 10
   const points = []
   for (let i = 0; i < totalSamples && points.length < count; i++) {
     const theta = goldenAngle * i
@@ -60,12 +50,14 @@ function sampleSpherePoints(count, radius, wm, landOnly) {
     const x = Math.sin(phi) * Math.cos(theta)
     const y = Math.sin(phi) * Math.sin(theta)
     const z = Math.cos(phi)
-    const lat = Math.asin(z) * (180 / Math.PI)
-    const lon = Math.atan2(y, x) * (180 / Math.PI)
+    // Converter para lon/lat (eixo Y = norte no Three.js)
+    // No Three.js: Y é cima, então lat = asin(y), lon = atan2(z, x)
+    const lat = Math.asin(Math.max(-1, Math.min(1, y))) * (180 / Math.PI)
+    const lon = Math.atan2(z, x) * (180 / Math.PI)
     const onL = isLand(wm, lon, lat)
     if (landOnly && !onL) continue
     if (!landOnly && onL) continue
-    const r = radius + (Math.random() - .5) * .015
+    const r = radius + (Math.random() - 0.5) * 0.012
     points.push({ x: x * r, y: y * r, z: z * r })
   }
   return points
@@ -141,7 +133,7 @@ void main() {
   } else {
     pos = aBasePos + uOrbCenter;
 
-    // NOISE DEFORMATION: ZERO when dispersing (hard cut, not gradual)
+    // NOISE DEFORMATION: ZERO when dispersing
     if (uTransition < 0.01) {
       float seed = aRandom * 100.;
       float n1 = snoise(vec3(aBasePos.x * .2 + seed, aBasePos.y * .2, aBasePos.z * .2));
@@ -152,27 +144,21 @@ void main() {
       pos.z += n3 * uDistortion * .05;
     }
 
-    // CASCADE DISPERSION — organic curl/flow, not linear explosion
+    // CASCADE DISPERSION — organic curl/flow
     if (uTransition > 0.) {
       float normalizedY = (aBasePos.y + 2.5) / 5.;
       float delay = (1. - normalizedY) * uCascadeDelay;
       float adjusted = max(0., uTransition - delay);
       float tP = min(adjusted / (1. - delay + .001), 1.);
 
-      // Base radial direction
       float len = length(aBasePos) + .001;
       vec3 dir = aBasePos / len;
 
-      // Curl/flow noise — organic smoke/fabric feel
-      // Uses slow time for gentle drift, not vibration
       float flowX = snoise(vec3(aBasePos.x*.5, aBasePos.y*.5, aBasePos.z*.5 + uTime*.08)) * .6;
       float flowY = snoise(vec3(aBasePos.y*.5, aBasePos.z*.5, aBasePos.x*.5 + uTime*.08)) * .6;
       float flowZ = snoise(vec3(aBasePos.z*.5, aBasePos.x*.5, aBasePos.y*.5 + uTime*.08)) * .6;
 
-      // Smooth start, accelerating end
       float dist = pow(tP, 1.5) * uDispersionRadius;
-
-      // Final position: radial + organic flow
       pos += (dir + vec3(flowX, flowY, flowZ) * 2.0) * dist;
     }
 
@@ -181,20 +167,31 @@ void main() {
     vec3 centered = pos - uOrbCenter;
     pos = vec3(centered.x*cR - centered.z*sR, centered.y, centered.x*sR + centered.z*cR) + uOrbCenter;
 
+    // Fresnel rim lighting — usa a posição BASE rotacionada (não a pos com noise)
+    // para calcular o ângulo de visão sem distorção
+    vec3 baseRotated = vec3(aBasePos.x*cR - aBasePos.z*sR, aBasePos.y, aBasePos.x*sR + aBasePos.z*cR);
+    float bLen = length(baseRotated) + .001;
+    // Fresnel: brilho nas bordas da esfera
+    float fresnel = 1.0 - abs(baseRotated.z / bLen);
+    fresnel = pow(fresnel, 2.5);
+    // Inner rim: anel brilhante na borda
+    float innerRim = pow(max(0., 1.0 - abs(baseRotated.z / bLen) - 0.1), 8.0) * 0.8;
+    // Back-face fade: partículas no hemisfério traseiro somem suavemente
+    float backFade = smoothstep(-0.1, 0.3, baseRotated.z / bLen);
+
     // Mouse
     vec2 md = uMouse - pos.xy;
     pos.xy += normalize(md + .001) * smoothstep(4., 0., length(md)) * .2;
 
-    // UNIFORM alpha — no Fresnel, no meia lua
-    // All particles on the sphere get the same brightness regardless of angle
+    // Alpha com Fresnel para aparência esférica 3D
     if (aIsLand > .5) {
-      vAlpha = 0.55 * uGlobalOpacity;
+      vAlpha = (0.55 + fresnel * 0.6 + innerRim) * backFade * uGlobalOpacity;
     } else {
-      vAlpha = 0.08 * uGlobalOpacity;
+      vAlpha = (0.08 + fresnel * 0.3 + innerRim * 0.5) * backFade * uGlobalOpacity;
     }
   }
 
-  // Coordinated spin: ALL rotate at same speed on all axes (like Dala)
+  // Giro coordenado: TODOS giram na mesma velocidade em todos os eixos (estilo Dala)
   float spinX = aRandom * 6.28 + uTime * .3;
   float spinY = fract(aRandom * 7.13) * 6.28 + uTime * .3;
   float spinZ = fract(aRandom * 3.57) * 6.28 + uTime * .3;
@@ -220,61 +217,90 @@ void main() {
 }
 `
 
-/* ── Build scene ── */
-function buildScene(scene) {
-  const wm = buildWorldMap()
-  // Tetrahedron = 3D pyramid wireframe (Dala-style vazado)
+/* ── Build scene (async — aguarda textura carregar) ── */
+function buildScene(scene, wm) {
   const triGeo = new THREE.TetrahedronGeometry(0.018, 0)
 
-  const landPts = sampleSpherePoints(LAND_COUNT, 2.5, wm, true)
+  const landPts  = sampleSpherePoints(LAND_COUNT,  2.5, wm, true)
   const oceanPts = sampleSpherePoints(OCEAN_COUNT, 2.5, wm, false)
-  const scatterPts = []; for(let i=0;i<SCATTER_COUNT;i++) scatterPts.push({x:(Math.random()-.5)*16,y:(Math.random()-.5)*12,z:(Math.random()-.5)*10})
-  const allPts = [...landPts,...oceanPts,...scatterPts]
+  const scatterPts = []
+  for (let i = 0; i < SCATTER_COUNT; i++) {
+    scatterPts.push({ x: (Math.random() - 0.5) * 16, y: (Math.random() - 0.5) * 12, z: (Math.random() - 0.5) * 10 })
+  }
+  const allPts = [...landPts, ...oceanPts, ...scatterPts]
 
-  const basePos=new Float32Array(TOTAL*3), colors=new Float32Array(TOTAL*3)
-  const randoms=new Float32Array(TOTAL), isLandA=new Float32Array(TOTAL)
-  const isScatA=new Float32Array(TOTAL), scales=new Float32Array(TOTAL), rots=new Float32Array(TOTAL*3)
+  const basePos  = new Float32Array(TOTAL * 3)
+  const colors   = new Float32Array(TOTAL * 3)
+  const randoms  = new Float32Array(TOTAL)
+  const isLandA  = new Float32Array(TOTAL)
+  const isScatA  = new Float32Array(TOTAL)
+  const scales   = new Float32Array(TOTAL)
+  const rots     = new Float32Array(TOTAL * 3)
 
-  allPts.forEach((p,i) => {
-    const isSc = i >= LAND_COUNT+OCEAN_COUNT, isL = i < LAND_COUNT
-    basePos[i*3]=p.x; basePos[i*3+1]=p.y; basePos[i*3+2]=p.z
+  allPts.forEach((p, i) => {
+    const isSc = i >= LAND_COUNT + OCEAN_COUNT
+    const isL  = i < LAND_COUNT
+    basePos[i*3]   = p.x
+    basePos[i*3+1] = p.y
+    basePos[i*3+2] = p.z
     const pal = isL ? PALETTE_LAND : isSc ? PALETTE_LAND : PALETTE_OCEAN
-    const col = pal[Math.floor(Math.random()*pal.length)]
-    colors[i*3]=col[0]; colors[i*3+1]=col[1]; colors[i*3+2]=col[2]
-    randoms[i]=Math.random(); isLandA[i]=isL?1:0; isScatA[i]=isSc?1:0
-    scales[i]=isSc?Math.random()*2.5+.8:1
-    rots[i*3]=0; rots[i*3+1]=Math.random()*Math.PI*2; rots[i*3+2]=0  // only Y varies
+    const col = pal[Math.floor(Math.random() * pal.length)]
+    colors[i*3]   = col[0]
+    colors[i*3+1] = col[1]
+    colors[i*3+2] = col[2]
+    randoms[i]  = Math.random()
+    isLandA[i]  = isL ? 1 : 0
+    isScatA[i]  = isSc ? 1 : 0
+    scales[i]   = isSc ? Math.random() * 2.5 + 0.8 : 1
+    rots[i*3]   = 0
+    rots[i*3+1] = Math.random() * Math.PI * 2
+    rots[i*3+2] = 0
   })
 
   const uniforms = {
-    uTime:{value:0}, uDistortion:{value:.2}, uTransition:{value:0},
-    uCascadeDelay:{value:.3}, uDispersionRadius:{value:1.5},
-    uGlobalOpacity:{value:1}, uRotY:{value:0},
-    uOrbCenter:{value:new THREE.Vector3(3,0,0)},
-    uMouse:{value:new THREE.Vector2(0,0)},
+    uTime:            { value: 0 },
+    uDistortion:      { value: 0.2 },
+    uTransition:      { value: 0 },
+    uCascadeDelay:    { value: 0.3 },
+    uDispersionRadius:{ value: 1.5 },
+    uGlobalOpacity:   { value: 1 },
+    uRotY:            { value: 0 },
+    uOrbCenter:       { value: new THREE.Vector3(3, 0, 0) },
+    uMouse:           { value: new THREE.Vector2(0, 0) },
   }
 
   const mat = new THREE.ShaderMaterial({
-    vertexShader:VERT, fragmentShader:FRAG, uniforms,
-    transparent:true, depthWrite:false, depthTest:false, side:THREE.DoubleSide,
-    wireframe:true,
+    vertexShader: VERT, fragmentShader: FRAG, uniforms,
+    transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+    wireframe: true,
   })
 
   const mesh = new THREE.InstancedMesh(triGeo, mat, TOTAL)
   const geo = mesh.geometry
-  geo.setAttribute('aBasePos', new THREE.InstancedBufferAttribute(basePos,3))
-  geo.setAttribute('aColor', new THREE.InstancedBufferAttribute(colors,3))
-  geo.setAttribute('aRandom', new THREE.InstancedBufferAttribute(randoms,1))
-  geo.setAttribute('aIsLand', new THREE.InstancedBufferAttribute(isLandA,1))
-  geo.setAttribute('aIsScatter', new THREE.InstancedBufferAttribute(isScatA,1))
-  geo.setAttribute('aScale', new THREE.InstancedBufferAttribute(scales,1))
-  geo.setAttribute('aRotation', new THREE.InstancedBufferAttribute(rots,3))
+  geo.setAttribute('aBasePos',   new THREE.InstancedBufferAttribute(basePos, 3))
+  geo.setAttribute('aColor',     new THREE.InstancedBufferAttribute(colors, 3))
+  geo.setAttribute('aRandom',    new THREE.InstancedBufferAttribute(randoms, 1))
+  geo.setAttribute('aIsLand',    new THREE.InstancedBufferAttribute(isLandA, 1))
+  geo.setAttribute('aIsScatter', new THREE.InstancedBufferAttribute(isScatA, 1))
+  geo.setAttribute('aScale',     new THREE.InstancedBufferAttribute(scales, 1))
+  geo.setAttribute('aRotation',  new THREE.InstancedBufferAttribute(rots, 3))
 
   const identity = new THREE.Matrix4()
-  for(let i=0;i<TOTAL;i++) mesh.setMatrixAt(i, identity)
+  for (let i = 0; i < TOTAL; i++) mesh.setMatrixAt(i, identity)
   mesh.instanceMatrix.needsUpdate = true
   scene.add(mesh)
   return { mesh, uniforms }
+}
+
+/* ── Carregar textura PNG e inicializar cena ── */
+function loadEarthTexture(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = url
+  })
 }
 
 export function WebGLBackground() {
@@ -284,128 +310,141 @@ export function WebGLBackground() {
     const el = ref.current
     if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
+    let raf, renderer, mesh, triggers = []
+
     const W = el.clientWidth, H = el.clientHeight
-    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true })
-    renderer.setSize(W,H); renderer.setPixelRatio(Math.min(devicePixelRatio,2))
-    renderer.setClearColor(0x000000,0)
-    renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2
+
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    renderer.setSize(W, H)
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+    renderer.setClearColor(0x000000, 0)
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.2
     el.appendChild(renderer.domElement)
 
     const scene = new THREE.Scene()
-    const cam = new THREE.PerspectiveCamera(45, W/H, .1, 100)
-    cam.position.set(0,0,7); cam.lookAt(0,0,0)
+    const cam = new THREE.PerspectiveCamera(45, W / H, 0.1, 100)
+    cam.position.set(0, 0, 7)
+    cam.lookAt(0, 0, 0)
 
-    const { mesh, uniforms: u } = buildScene(scene)
-
-    // Direct render — no EffectComposer, no depth test interference
-
-    // State — GSAP animates this, render loop copies to uniforms
+    // State
     const state = {
-      orbX:3, orbY:0, orbZ:0,
-      distortion:.2, transition:0,
-      dispersionRadius:1.5,
-      globalOpacity:1,
+      orbX: 3, orbY: 0, orbZ: 0,
+      distortion: 0.2, transition: 0,
+      dispersionRadius: 1.5,
+      globalOpacity: 1,
     }
 
-    // PER-SECTION fromTo — explicit from/to, no value inference
-    const triggers = []
-
-    // Fold 2: RIGHT → LEFT
-    triggers.push(gsap.fromTo(state,
-      { orbX: 3, orbY: 0, distortion: .2 },
-      { orbX: -3.5, orbY: .3, distortion: .4,
-        scrollTrigger: { trigger: '.section--tall', start: 'top bottom', end: 'bottom top', scrub: 2.5 } }
-    ))
-
-    // Fold 3a: LEFT → slightly left of center before explosion
-    triggers.push(gsap.fromTo(state,
-      { orbX: -3.5, orbY: .3, orbZ: 0, distortion: .4 },
-      { orbX: -1, orbY: 0, orbZ: .5, distortion: .3,
-        immediateRender: false,
-        scrollTrigger: { trigger: '#manifesto', start: 'top bottom', end: 'top center', scrub: 2.5 } }
-    ))
-
-    // Fold 3b: CASCADE DISPERSION from orbX: -1
-    triggers.push(gsap.to(state,
-      { transition: 1, globalOpacity: .3,
-        scrollTrigger: { trigger: '#manifesto', start: 'top center', end: 'bottom center', scrub: 2.5 } }
-    ))
-
-    // Fold 4: reconverge (immediateRender:false)
-    triggers.push(gsap.fromTo(state,
-      { transition: 1, globalOpacity: .3, orbX: 0, orbY: 0, orbZ: .5, distortion: .3 },
-      { transition: 0, globalOpacity: 1, orbX: 2.5, orbY: -.5, orbZ: 0, distortion: .2,
-        immediateRender: false,
-        scrollTrigger: { trigger: '#resultados', start: 'top bottom', end: 'bottom center', scrub: 2.5 } }
-    ))
-
-    // Fold 5: gentle pulse
-    triggers.push(gsap.to(state,
-      { distortion: .4,
-        scrollTrigger: { trigger: '#contato', start: 'top bottom', end: 'center center', scrub: 2.5 } }
-    ))
-
-    // Mouse
-    const mouseT={x:0,y:0}, mouseC={x:0,y:0}
-    const onMM = e => { mouseT.x=(e.clientX/innerWidth-.5)*6; mouseT.y=-(e.clientY/innerHeight-.5)*6 }
-    addEventListener('mousemove', onMM, {passive:true})
-
-    const scrollS = {y:0}
-    const onS = () => { const m=document.documentElement.scrollHeight-innerHeight; scrollS.y=m>0?scrollY/m:0 }
-    addEventListener('scroll', onS, {passive:true})
-
-    const onR = () => { const w=el.clientWidth,h=el.clientHeight; renderer.setSize(w,h); cam.aspect=w/h; cam.updateProjectionMatrix() }
-    addEventListener('resize', onR)
-
-    // Smoothed values — lerp toward state each frame (0.04 = 4% per frame = silky inertia)
     const smooth = {
       orbX: 3, orbY: 0, orbZ: 0,
-      distortion: .2, transition: 0,
+      distortion: 0.2, transition: 0,
       globalOpacity: 1,
     }
     const LERP = 0.04
 
-    let raf; const t0 = performance.now()
+    const mouseT = { x: 0, y: 0 }, mouseC = { x: 0, y: 0 }
+    const onMM = e => { mouseT.x = (e.clientX / innerWidth - 0.5) * 6; mouseT.y = -(e.clientY / innerHeight - 0.5) * 6 }
+    addEventListener('mousemove', onMM, { passive: true })
+
+    const scrollS = { y: 0 }
+    const onS = () => { const m = document.documentElement.scrollHeight - innerHeight; scrollS.y = m > 0 ? scrollY / m : 0 }
+    addEventListener('scroll', onS, { passive: true })
+
+    const onR = () => {
+      const w = el.clientWidth, h = el.clientHeight
+      renderer.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix()
+    }
+    addEventListener('resize', onR)
+
+    let u = null
+    const t0 = performance.now()
+
     const loop = () => {
       raf = requestAnimationFrame(loop)
-      const time = (performance.now()-t0)*.001
+      const time = (performance.now() - t0) * 0.001
 
-      // Lerp smooth → state (inertia on top of GSAP)
-      smooth.orbX        += (state.orbX - smooth.orbX) * LERP
-      smooth.orbY        += (state.orbY - smooth.orbY) * LERP
-      smooth.orbZ        += (state.orbZ - smooth.orbZ) * LERP
-      smooth.distortion  += (state.distortion - smooth.distortion) * LERP
-      smooth.transition  += (state.transition - smooth.transition) * LERP
+      smooth.orbX        += (state.orbX        - smooth.orbX)        * LERP
+      smooth.orbY        += (state.orbY        - smooth.orbY)        * LERP
+      smooth.orbZ        += (state.orbZ        - smooth.orbZ)        * LERP
+      smooth.distortion  += (state.distortion  - smooth.distortion)  * LERP
+      smooth.transition  += (state.transition  - smooth.transition)  * LERP
       smooth.globalOpacity += (state.globalOpacity - smooth.globalOpacity) * 0.06
 
-      // Copy SMOOTHED values → uniforms
-      u.uTime.value = time
-      u.uRotY.value = time * .08
-      u.uDistortion.value = smooth.distortion
-      u.uTransition.value = smooth.transition
-      u.uCascadeDelay.value = state.cascadeDelay
-      u.uDispersionRadius.value = state.dispersionRadius
-      u.uGlobalOpacity.value = smooth.globalOpacity
-      u.uOrbCenter.value.set(smooth.orbX, smooth.orbY, smooth.orbZ)
+      if (u) {
+        u.uTime.value            = time
+        u.uRotY.value            = time * 0.08
+        u.uDistortion.value      = smooth.distortion
+        u.uTransition.value      = smooth.transition
+        u.uCascadeDelay.value    = state.cascadeDelay ?? 0.3
+        u.uDispersionRadius.value = state.dispersionRadius
+        u.uGlobalOpacity.value   = smooth.globalOpacity
+        u.uOrbCenter.value.set(smooth.orbX, smooth.orbY, smooth.orbZ)
+      }
 
-      mouseC.x += (mouseT.x-mouseC.x)*.03; mouseC.y += (mouseT.y-mouseC.y)*.03
-      u.uMouse.value.set(mouseC.x, mouseC.y)
+      mouseC.x += (mouseT.x - mouseC.x) * 0.03
+      mouseC.y += (mouseT.y - mouseC.y) * 0.03
+      if (u) u.uMouse.value.set(mouseC.x, mouseC.y)
 
-      cam.position.y = -scrollS.y*1.2
-      cam.position.x = Math.sin(scrollS.y*Math.PI*2)*.5
+      cam.position.y = -scrollS.y * 1.2
+      cam.position.x = Math.sin(scrollS.y * Math.PI * 2) * 0.5
 
       renderer.render(scene, cam)
     }
     loop()
 
+    // Carregar textura e construir cena
+    loadEarthTexture(earthTextureUrl).then(img => {
+      const wm = buildWorldMap(img)
+      const result = buildScene(scene, wm)
+      mesh = result.mesh
+      u = result.uniforms
+
+      // ScrollTrigger animations
+      triggers.push(gsap.fromTo(state,
+        { orbX: 3, orbY: 0, distortion: 0.2 },
+        { orbX: -3.5, orbY: 0.3, distortion: 0.4,
+          scrollTrigger: { trigger: '.section--tall', start: 'top bottom', end: 'bottom top', scrub: 2.5 } }
+      ))
+
+      triggers.push(gsap.fromTo(state,
+        { orbX: -3.5, orbY: 0.3, orbZ: 0, distortion: 0.4 },
+        { orbX: -1, orbY: 0, orbZ: 0.5, distortion: 0.3,
+          immediateRender: false,
+          scrollTrigger: { trigger: '#manifesto', start: 'top bottom', end: 'top center', scrub: 2.5 } }
+      ))
+
+      triggers.push(gsap.to(state,
+        { transition: 1, globalOpacity: 0.3,
+          scrollTrigger: { trigger: '#manifesto', start: 'top center', end: 'bottom center', scrub: 2.5 } }
+      ))
+
+      triggers.push(gsap.fromTo(state,
+        { transition: 1, globalOpacity: 0.3, orbX: 0, orbY: 0, orbZ: 0.5, distortion: 0.3 },
+        { transition: 0, globalOpacity: 1, orbX: 2.5, orbY: -0.5, orbZ: 0, distortion: 0.2,
+          immediateRender: false,
+          scrollTrigger: { trigger: '#resultados', start: 'top bottom', end: 'bottom center', scrub: 2.5 } }
+      ))
+
+      triggers.push(gsap.to(state,
+        { distortion: 0.4,
+          scrollTrigger: { trigger: '#contato', start: 'top bottom', end: 'center center', scrub: 2.5 } }
+      ))
+    }).catch(err => {
+      console.error('[WebGLBackground] Falha ao carregar textura da Terra:', err)
+    })
+
     return () => {
       cancelAnimationFrame(raf)
-      removeEventListener('scroll',onS); removeEventListener('resize',onR); removeEventListener('mousemove',onMM)
+      removeEventListener('scroll', onS)
+      removeEventListener('resize', onR)
+      removeEventListener('mousemove', onMM)
       triggers.forEach(tr => tr.scrollTrigger?.kill())
-      renderer.dispose(); mesh.geometry.dispose(); mesh.material.dispose()
-      if(el.contains(renderer.domElement)) el.removeChild(renderer.domElement)
+      renderer.dispose()
+      if (mesh) { mesh.geometry.dispose(); mesh.material.dispose() }
+      if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement)
     }
   }, [])
 
-  return <div ref={ref} style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none',width:'100vw',height:'100vh'}} />
+  return <div ref={ref} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', width: '100vw', height: '100vh' }} />
 }
