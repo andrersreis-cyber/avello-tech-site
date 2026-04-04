@@ -6,9 +6,9 @@ import earthTextureUrl from '../../../assets/earth_texture.png'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const LAND_COUNT  = 14000
-const OCEAN_COUNT = 3500
-const SCATTER_COUNT = 600
+const LAND_COUNT  = 8000
+const OCEAN_COUNT = 2000
+const SCATTER_COUNT = 400
 const TOTAL = LAND_COUNT + OCEAN_COUNT + SCATTER_COUNT
 
 const PALETTE_LAND = [
@@ -246,7 +246,7 @@ void main() {
 
 /* ── Build scene ── */
 function buildScene(scene, wm) {
-  const triGeo = new THREE.TetrahedronGeometry(0.018, 0)
+  const triGeo = new THREE.TetrahedronGeometry(0.022, 0)
 
   const landPts  = sampleSpherePoints(LAND_COUNT,  2.5, wm, true)
   const oceanPts = sampleSpherePoints(OCEAN_COUNT, 2.5, wm, false)
