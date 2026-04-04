@@ -23,7 +23,6 @@ const PALETTE_OCEAN = [
 
 /* ── World map via PNG texture (Natural Earth 50m, 4096×2048) ── */
 function buildWorldMap(img) {
-  // Usar resolução reduzida para lookup rápido (1024×512 é suficiente)
   const W = 1024, H = 512
   const cv = document.createElement('canvas')
   cv.width = W; cv.height = H
@@ -39,19 +38,18 @@ function isLand(wm, lon, lat) {
 }
 
 function sampleSpherePoints(count, radius, wm, landOnly) {
-  // Fibonacci sphere para espaçamento uniforme (sem gaps, sem clusters)
-  const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-  // Amostrar muito mais pontos do que o necessário para compensar a filtragem terra/oceano
-  const totalSamples = count * 10
+  // Random uniform — covers ENTIRE sphere (both hemispheres)
+  // Fibonacci was causing meia-lua: only sampled one hemisphere
   const points = []
-  for (let i = 0; i < totalSamples && points.length < count; i++) {
-    const theta = goldenAngle * i
-    const phi = Math.acos(1 - (2 * (i + 0.5)) / totalSamples)
-    const x = Math.sin(phi) * Math.cos(theta)
-    const y = Math.sin(phi) * Math.sin(theta)
-    const z = Math.cos(phi)
-    // Converter para lon/lat (eixo Y = norte no Three.js)
-    // No Three.js: Y é cima, então lat = asin(y), lon = atan2(z, x)
+  let attempts = 0
+  while (points.length < count && attempts < count * 30) {
+    attempts++
+    const u = Math.random() * 2 - 1
+    const theta = Math.random() * Math.PI * 2
+    const st = Math.sqrt(1 - u * u)
+    const x = st * Math.cos(theta)
+    const y = u  // Y = up axis
+    const z = st * Math.sin(theta)
     const lat = Math.asin(Math.max(-1, Math.min(1, y))) * (180 / Math.PI)
     const lon = Math.atan2(z, x) * (180 / Math.PI)
     const onL = isLand(wm, lon, lat)
@@ -131,9 +129,55 @@ void main() {
     vAlpha = (.15 + depth * .30) * uGlobalOpacity;
 
   } else {
+
+    float cR = cos(uRotY), sR = sin(uRotY);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FRESNEL / BACKFACE — calculado sobre aBasePos rotacionado (sem offset)
+    //
+    // A câmera está em (0,0,7). O vetor de visão é -Z.
+    // Para uma esfera centrada na origem, o "quanto uma partícula aponta
+    // para a câmera" é simplesmente a componente Z do vetor normalizado
+    // da partícula APÓS a rotação Y do globo.
+    //
+    // cosAngle > 0  → hemisfério frontal (visível)
+    // cosAngle = 0  → borda lateral (borda do globo — DEVE ser visível!)
+    // cosAngle < 0  → hemisfério traseiro (deve sumir)
+    //
+    // ERRO ANTERIOR: smoothstep(-0.1, 0.3, cosAngle) fazia cosAngle=0
+    // (as bordas!) ter backFade=0.25 → globo aparecia como meia-lua.
+    //
+    // CORREÇÃO: usar smoothstep(-0.35, -0.05, cosAngle) para que
+    // cosAngle=0 (borda) tenha backFade=1.0 (totalmente visível).
+    // ═══════════════════════════════════════════════════════════════════════
+    vec3 baseRotated = vec3(
+      aBasePos.x * cR - aBasePos.z * sR,
+      aBasePos.y,
+      aBasePos.x * sR + aBasePos.z * cR
+    );
+    float bLen = length(baseRotated) + .001;
+    float cosAngle = baseRotated.z / bLen;
+
+    // Fresnel: máximo nas bordas (cosAngle≈0), zero no centro (cosAngle≈1)
+    float fresnel  = pow(1.0 - abs(cosAngle), 2.5);
+    float innerRim = pow(max(0., 1.0 - abs(cosAngle) - 0.1), 8.0) * 0.8;
+
+    // backFade: só esconde o hemisfério traseiro PROFUNDO (cosAngle < -0.05)
+    // cosAngle=0 (bordas laterais) → backFade=1.0 ← CHAVE para não ter meia-lua
+    float backFade = smoothstep(-0.35, -0.05, cosAngle);
+
+    if (aIsLand > .5) {
+      vAlpha = (0.55 + fresnel * 0.6 + innerRim) * backFade * uGlobalOpacity;
+    } else {
+      vAlpha = (0.08 + fresnel * 0.3 + innerRim * 0.5) * backFade * uGlobalOpacity;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // POSIÇÃO
+    // ═══════════════════════════════════════════════════════════════════════
     pos = aBasePos + uOrbCenter;
 
-    // NOISE DEFORMATION: ZERO when dispersing
+    // Noise deformation (só quando não está dispersando)
     if (uTransition < 0.01) {
       float seed = aRandom * 100.;
       float n1 = snoise(vec3(aBasePos.x * .2 + seed, aBasePos.y * .2, aBasePos.z * .2));
@@ -144,54 +188,37 @@ void main() {
       pos.z += n3 * uDistortion * .05;
     }
 
-    // CASCADE DISPERSION — organic curl/flow
+    // CASCADE DISPERSION — original style, slightly faster
     if (uTransition > 0.) {
       float normalizedY = (aBasePos.y + 2.5) / 5.;
       float delay = (1. - normalizedY) * uCascadeDelay;
       float adjusted = max(0., uTransition - delay);
       float tP = min(adjusted / (1. - delay + .001), 1.);
 
-      float len = length(aBasePos) + .001;
-      vec3 dir = aBasePos / len;
+      float bLen2 = length(aBasePos) + .001;
+      vec3 dir = aBasePos / bLen2;
 
       float flowX = snoise(vec3(aBasePos.x*.5, aBasePos.y*.5, aBasePos.z*.5 + uTime*.08)) * .6;
       float flowY = snoise(vec3(aBasePos.y*.5, aBasePos.z*.5, aBasePos.x*.5 + uTime*.08)) * .6;
       float flowZ = snoise(vec3(aBasePos.z*.5, aBasePos.x*.5, aBasePos.y*.5 + uTime*.08)) * .6;
 
-      float dist = pow(tP, 1.5) * uDispersionRadius;
-      pos += (dir + vec3(flowX, flowY, flowZ) * 2.0) * dist;
+      float dist = pow(tP, 1.2) * uDispersionRadius;
+
+      vec3 localPos2 = pos - uOrbCenter;
+      localPos2 += (dir + vec3(flowX, flowY, flowZ) * 0.7) * dist;
+      pos = localPos2 + uOrbCenter;
     }
 
-    // Y-axis rotation
-    float cR = cos(uRotY), sR = sin(uRotY);
+    // Rotação Y em torno do centro do orbe
     vec3 centered = pos - uOrbCenter;
     pos = vec3(centered.x*cR - centered.z*sR, centered.y, centered.x*sR + centered.z*cR) + uOrbCenter;
 
-    // Fresnel rim lighting — usa a posição BASE rotacionada (não a pos com noise)
-    // para calcular o ângulo de visão sem distorção
-    vec3 baseRotated = vec3(aBasePos.x*cR - aBasePos.z*sR, aBasePos.y, aBasePos.x*sR + aBasePos.z*cR);
-    float bLen = length(baseRotated) + .001;
-    // Fresnel: brilho nas bordas da esfera
-    float fresnel = 1.0 - abs(baseRotated.z / bLen);
-    fresnel = pow(fresnel, 2.5);
-    // Inner rim: anel brilhante na borda
-    float innerRim = pow(max(0., 1.0 - abs(baseRotated.z / bLen) - 0.1), 8.0) * 0.8;
-    // Back-face fade: partículas no hemisfério traseiro somem suavemente
-    float backFade = smoothstep(-0.1, 0.3, baseRotated.z / bLen);
-
-    // Mouse
+    // Mouse repulsion
     vec2 md = uMouse - pos.xy;
     pos.xy += normalize(md + .001) * smoothstep(4., 0., length(md)) * .2;
-
-    // Alpha com Fresnel para aparência esférica 3D
-    if (aIsLand > .5) {
-      vAlpha = (0.55 + fresnel * 0.6 + innerRim) * backFade * uGlobalOpacity;
-    } else {
-      vAlpha = (0.08 + fresnel * 0.3 + innerRim * 0.5) * backFade * uGlobalOpacity;
-    }
   }
 
-  // Giro coordenado: TODOS giram na mesma velocidade em todos os eixos (estilo Dala)
+  // Giro coordenado dos triângulos (estilo Dala)
   float spinX = aRandom * 6.28 + uTime * .3;
   float spinY = fract(aRandom * 7.13) * 6.28 + uTime * .3;
   float spinZ = fract(aRandom * 3.57) * 6.28 + uTime * .3;
@@ -217,7 +244,7 @@ void main() {
 }
 `
 
-/* ── Build scene (async — aguarda textura carregar) ── */
+/* ── Build scene ── */
 function buildScene(scene, wm) {
   const triGeo = new THREE.TetrahedronGeometry(0.018, 0)
 
@@ -258,15 +285,15 @@ function buildScene(scene, wm) {
   })
 
   const uniforms = {
-    uTime:            { value: 0 },
-    uDistortion:      { value: 0.2 },
-    uTransition:      { value: 0 },
-    uCascadeDelay:    { value: 0.3 },
-    uDispersionRadius:{ value: 1.5 },
-    uGlobalOpacity:   { value: 1 },
-    uRotY:            { value: 0 },
-    uOrbCenter:       { value: new THREE.Vector3(3, 0, 0) },
-    uMouse:           { value: new THREE.Vector2(0, 0) },
+    uTime:             { value: 0 },
+    uDistortion:       { value: 0.2 },
+    uTransition:       { value: 0 },
+    uCascadeDelay:     { value: 0.3 },
+    uDispersionRadius: { value: 1.0 },   // ← reduzido de 1.5 para 1.0
+    uGlobalOpacity:    { value: 1 },
+    uRotY:             { value: 0 },
+    uOrbCenter:        { value: new THREE.Vector3(3, 0, 0) },
+    uMouse:            { value: new THREE.Vector2(0, 0) },
   }
 
   const mat = new THREE.ShaderMaterial({
@@ -292,7 +319,7 @@ function buildScene(scene, wm) {
   return { mesh, uniforms }
 }
 
-/* ── Carregar textura PNG e inicializar cena ── */
+/* ── Carregar textura PNG ── */
 function loadEarthTexture(url) {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -314,7 +341,6 @@ export function WebGLBackground() {
 
     const W = el.clientWidth, H = el.clientHeight
 
-    // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(W, H)
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
@@ -328,11 +354,10 @@ export function WebGLBackground() {
     cam.position.set(0, 0, 7)
     cam.lookAt(0, 0, 0)
 
-    // State
     const state = {
       orbX: 3, orbY: 0, orbZ: 0,
       distortion: 0.2, transition: 0,
-      dispersionRadius: 1.5,
+      dispersionRadius: 1.0,   // ← reduzido de 1.5 para 1.0
       globalOpacity: 1,
     }
 
@@ -344,11 +369,17 @@ export function WebGLBackground() {
     const LERP = 0.04
 
     const mouseT = { x: 0, y: 0 }, mouseC = { x: 0, y: 0 }
-    const onMM = e => { mouseT.x = (e.clientX / innerWidth - 0.5) * 6; mouseT.y = -(e.clientY / innerHeight - 0.5) * 6 }
+    const onMM = e => {
+      mouseT.x = (e.clientX / innerWidth - 0.5) * 6
+      mouseT.y = -(e.clientY / innerHeight - 0.5) * 6
+    }
     addEventListener('mousemove', onMM, { passive: true })
 
     const scrollS = { y: 0 }
-    const onS = () => { const m = document.documentElement.scrollHeight - innerHeight; scrollS.y = m > 0 ? scrollY / m : 0 }
+    const onS = () => {
+      const m = document.documentElement.scrollHeight - innerHeight
+      scrollS.y = m > 0 ? scrollY / m : 0
+    }
     addEventListener('scroll', onS, { passive: true })
 
     const onR = () => {
@@ -364,21 +395,21 @@ export function WebGLBackground() {
       raf = requestAnimationFrame(loop)
       const time = (performance.now() - t0) * 0.001
 
-      smooth.orbX        += (state.orbX        - smooth.orbX)        * LERP
-      smooth.orbY        += (state.orbY        - smooth.orbY)        * LERP
-      smooth.orbZ        += (state.orbZ        - smooth.orbZ)        * LERP
-      smooth.distortion  += (state.distortion  - smooth.distortion)  * LERP
-      smooth.transition  += (state.transition  - smooth.transition)  * LERP
+      smooth.orbX          += (state.orbX          - smooth.orbX)          * LERP
+      smooth.orbY          += (state.orbY          - smooth.orbY)          * LERP
+      smooth.orbZ          += (state.orbZ          - smooth.orbZ)          * LERP
+      smooth.distortion    += (state.distortion    - smooth.distortion)    * LERP
+      smooth.transition    += (state.transition    - smooth.transition)    * LERP
       smooth.globalOpacity += (state.globalOpacity - smooth.globalOpacity) * 0.06
 
       if (u) {
-        u.uTime.value            = time
-        u.uRotY.value            = time * 0.08
-        u.uDistortion.value      = smooth.distortion
-        u.uTransition.value      = smooth.transition
-        u.uCascadeDelay.value    = state.cascadeDelay ?? 0.3
+        u.uTime.value             = time
+        u.uRotY.value             = time * 0.08
+        u.uDistortion.value       = smooth.distortion
+        u.uTransition.value       = smooth.transition
+        u.uCascadeDelay.value     = 0.3
         u.uDispersionRadius.value = state.dispersionRadius
-        u.uGlobalOpacity.value   = smooth.globalOpacity
+        u.uGlobalOpacity.value    = smooth.globalOpacity
         u.uOrbCenter.value.set(smooth.orbX, smooth.orbY, smooth.orbZ)
       }
 
@@ -393,7 +424,6 @@ export function WebGLBackground() {
     }
     loop()
 
-    // Carregar textura e construir cena
     loadEarthTexture(earthTextureUrl).then(img => {
       const wm = buildWorldMap(img)
       const result = buildScene(scene, wm)
@@ -407,20 +437,23 @@ export function WebGLBackground() {
           scrollTrigger: { trigger: '.section--tall', start: 'top bottom', end: 'bottom top', scrub: 2.5 } }
       ))
 
+      // Fold 3a: slide to CENTER before dispersing
       triggers.push(gsap.fromTo(state,
         { orbX: -3.5, orbY: 0.3, orbZ: 0, distortion: 0.4 },
-        { orbX: -1, orbY: 0, orbZ: 0.5, distortion: 0.3,
+        { orbX: 0, orbY: 0, orbZ: 0, distortion: 0.2,
           immediateRender: false,
-          scrollTrigger: { trigger: '#manifesto', start: 'top bottom', end: 'top center', scrub: 2.5 } }
+          scrollTrigger: { trigger: '#manifesto', start: 'top bottom', end: 'top top', scrub: 2.5 } }
       ))
 
+      // Fold 3b: disperse from CENTER (orbX=0)
       triggers.push(gsap.to(state,
         { transition: 1, globalOpacity: 0.3,
-          scrollTrigger: { trigger: '#manifesto', start: 'top center', end: 'bottom center', scrub: 2.5 } }
+          scrollTrigger: { trigger: '#manifesto', start: 'top top', end: 'bottom center', scrub: 2.5 } }
       ))
 
+      // Fold 4: reconverge from center
       triggers.push(gsap.fromTo(state,
-        { transition: 1, globalOpacity: 0.3, orbX: 0, orbY: 0, orbZ: 0.5, distortion: 0.3 },
+        { transition: 1, globalOpacity: 0.3, orbX: 0, orbY: 0, orbZ: 0, distortion: 0.2 },
         { transition: 0, globalOpacity: 1, orbX: 2.5, orbY: -0.5, orbZ: 0, distortion: 0.2,
           immediateRender: false,
           scrollTrigger: { trigger: '#resultados', start: 'top bottom', end: 'bottom center', scrub: 2.5 } }
