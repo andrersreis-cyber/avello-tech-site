@@ -3,10 +3,9 @@ import { Reveal } from './Reveal'
 import { staggerReveal } from '../lib/animations'
 
 const stats = [
-  { num: '+50k', label: 'Leads gerados' },
-  { num: '1.200h', label: 'Economizadas / mês', suffix: true },
-  { num: '+45%', label: 'Taxa de conversão' },
-  { num: '99.9%', label: 'Uptime garantido' },
+  { num: 'R$ 847.000', label: 'em retrabalho eliminados nos últimos 12 meses' },
+  { num: '73%', label: 'de redução no tempo de ciclo de aprovação' },
+  { num: '11→2 dias', label: 'no processo de orçamento' },
 ]
 
 export function ProofSection() {

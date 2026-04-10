@@ -5,7 +5,7 @@ export function ManifestoSolution() {
     <section className="manifesto-sec">
       <div className="manifesto-sec__inner">
         <Reveal>
-          <h2 className="manifesto-sec__title">Chega de apagar incêndio.</h2>
+          <h2 className="manifesto-sec__title">Chega de gerir no achismo.</h2>
         </Reveal>
         <div className="manifesto-sec__body">
           <Reveal delay={0.2}>
@@ -16,6 +16,9 @@ export function ManifestoSolution() {
           </Reveal>
           <Reveal delay={0.6}>
             <p>Dashboards em tempo real mostram exatamente onde está o dinheiro, onde está o gargalo, e o que fazer agora.</p>
+          </Reveal>
+          <Reveal delay={0.8}>
+            <p>Não é automação. É um ecossistema de agentes que pensa, age e aprende — enquanto você foca no que importa.</p>
           </Reveal>
         </div>
       </div>

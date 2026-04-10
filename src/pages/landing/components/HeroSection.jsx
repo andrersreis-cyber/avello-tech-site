@@ -4,17 +4,18 @@ export function HeroSection() {
   return (
     <section className="section" data-section="hero">
       <h1>
-        <RevealText className="hero__title" delay={0.2}>Sua operação</RevealText>
-        <RevealText className="hero__title" delay={0.4}>no piloto</RevealText>
-        <RevealText className="hero__title" delay={0.6}>automático.</RevealText>
+        <RevealText className="hero__title" delay={0.2}>O caos muda</RevealText>
+        <RevealText className="hero__title" delay={0.4}>de nicho. A causa</RevealText>
+        <RevealText className="hero__title" delay={0.6}>é sempre a mesma.</RevealText>
       </h1>
       <Reveal delay={1}>
-        <div className="hero__sub">Agentes de IA, integrações e dashboards que trabalham enquanto você dorme.</div>
+        <div className="hero__sub">Decisão sem dado. Processo sem estratégia. Operação no improviso.</div>
       </Reveal>
       <Reveal delay={1.2}>
         <p className="hero__body">
-          A Avello constrói automações inteligentes que eliminam 30 horas semanais
-          de trabalho manual. Sem contratar. Sem treinar. Sem esperar.
+          Sua operação tem gaps que custam dinheiro todos os dias. A Avello identifica
+          esses gaps e constrói sistemas que trabalham sozinhos — sem você precisar
+          entender de tecnologia.
         </p>
       </Reveal>
       <Reveal className="hero__cta" delay={1.4}>
