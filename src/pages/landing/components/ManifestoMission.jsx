@@ -5,17 +5,20 @@ export function ManifestoMission() {
     <section className="manifesto-sec manifesto-sec--right">
       <div className="manifesto-sec__inner">
         <Reveal>
-          <h2 className="manifesto-sec__title">Construa um negócio que escala.</h2>
+          <h2 className="manifesto-sec__title">A Avello nasceu dentro de uma obra.</h2>
         </Reveal>
         <div className="manifesto-sec__body">
           <Reveal delay={0.2}>
-            <p>Nossa missão é transformar operações manuais em máquinas de crescimento — redefinindo produtividade de <em>fazer mais</em> para <em>fazer melhor</em>.</p>
+            <p>Começamos resolvendo o caos da construção civil — orçamentos errados, gestão no WhatsApp, decisões tomadas sem dado nenhum.</p>
           </Reveal>
           <Reveal delay={0.4}>
-            <p>Seus melhores momentos no trabalho são quando você está criando valor para clientes, não preenchendo planilhas.</p>
+            <p>Percebemos que o problema não era o setor. Era a ausência de inteligência no processo.</p>
           </Reveal>
           <Reveal delay={0.6}>
-            <p>A Avello existe para isso. Uma ferramenta integrada com a forma como seu negócio realmente funciona.</p>
+            <p><em>O caos é o mesmo em todo lugar. Só muda o endereço.</em></p>
+          </Reveal>
+          <Reveal delay={0.8}>
+            <p>Hoje construímos ecossistemas de agentes autônomos para empresas de qualquer segmento que querem parar de improvisar — e começar a crescer com estratégia.</p>
           </Reveal>
         </div>
       </div>

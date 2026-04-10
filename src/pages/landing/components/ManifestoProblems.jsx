@@ -2,8 +2,9 @@ import { Reveal } from './Reveal'
 
 const blocks = [
   [
-    'Sua equipe perde 12 horas por semana em tarefas que uma IA resolve em segundos. Copiar dados. Responder as mesmas perguntas. Montar o mesmo relatório toda segunda.',
-    'Cada hora manual é receita perdida. E o custo invisível está corroendo sua margem.',
+    'O problema não é falta de gente. É falta de inteligência no processo.',
+    'Sua equipe gasta horas copiando dados, respondendo as mesmas perguntas e montando o mesmo relatório toda semana. Enquanto isso, ninguém analisa o que realmente importa — e as decisões continuam sendo tomadas no achismo.',
+    'Cada hora manual é margem perdida. E o custo invisível está corroendo seu negócio.',
   ],
   [
     'Você contrata mais gente, mas o gargalo continua. O problema não é falta de equipe — é falta de automação.',

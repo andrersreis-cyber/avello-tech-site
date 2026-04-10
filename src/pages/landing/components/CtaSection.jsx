@@ -21,7 +21,7 @@ export function CtaSection() {
     <section id="contato" className="cta">
       <Reveal>
         <h2 className="cta__title">Descubra quanto sua operação manual está te custando.</h2>
-        <p className="cta__sub">Diagnóstico gratuito. 30 minutos. Sem compromisso.</p>
+        <p className="cta__sub">Quem não posicionar sua empresa nesse novo universo agora vai ficar obsoleto em pouco tempo. O diagnóstico é gratuito, leva 30 minutos e você sai sabendo exatamente o que está perdendo — e quanto vai custar resolver.</p>
       </Reveal>
       <Reveal delay={0.3}>
         {done ? (
@@ -55,7 +55,8 @@ export function CtaSection() {
               <label className="av-label" htmlFor="detalhes">Detalhes (opcional)</label>
               <textarea className="av-input" id="detalhes" name="detalhes" placeholder="Descreva brevemente..." value={form.detalhes} onChange={handleChange} />
             </div>
-            <button type="submit" className="av-submit">Agendar Diagnóstico Gratuito</button>
+            <button type="submit" className="av-submit">Quero meu diagnóstico gratuito</button>
+            <p className="av-guarantee">Sem mensalidade. Sem contrato longo. Cada projeto tem escopo e prazo definidos antes de começar.</p>
             <a className="av-wpp-link" href={`https://wa.me/${WPP_NUM}`} target="_blank" rel="noopener noreferrer">
               Ou fale direto no WhatsApp &rarr;
             </a>
