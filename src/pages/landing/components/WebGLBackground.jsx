@@ -299,7 +299,6 @@ function buildScene(scene, wm) {
   const mat = new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG, uniforms,
     transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
-    wireframe: true,
   })
 
   const mesh = new THREE.InstancedMesh(triGeo, mat, TOTAL)
@@ -369,7 +368,11 @@ export function WebGLBackground() {
     const LERP = 0.04
 
     const mouseT = { x: 0, y: 0 }, mouseC = { x: 0, y: 0 }
+    let lastMM = 0
     const onMM = e => {
+      const now = Date.now()
+      if (now - lastMM < 16) return // throttle ~60fps
+      lastMM = now
       mouseT.x = (e.clientX / innerWidth - 0.5) * 6
       mouseT.y = -(e.clientY / innerHeight - 0.5) * 6
     }
@@ -386,7 +389,7 @@ export function WebGLBackground() {
       const w = el.clientWidth, h = el.clientHeight
       renderer.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix()
     }
-    addEventListener('resize', onR)
+    addEventListener('resize', onR, { passive: true })
 
     let u = null
     const t0 = performance.now()
@@ -434,7 +437,7 @@ export function WebGLBackground() {
       triggers.push(gsap.fromTo(state,
         { orbX: 3, orbY: 0, distortion: 0.2 },
         { orbX: -3.5, orbY: 0.3, distortion: 0.4,
-          scrollTrigger: { trigger: '.section--tall', start: 'top bottom', end: 'bottom top', scrub: 2.5 } }
+          scrollTrigger: { trigger: '.section--tall', start: 'top bottom', end: 'bottom top', scrub: 1.0 } }
       ))
 
       // Fold 3a: slide to CENTER before dispersing
@@ -442,13 +445,13 @@ export function WebGLBackground() {
         { orbX: -3.5, orbY: 0.3, orbZ: 0, distortion: 0.4 },
         { orbX: 0, orbY: 0, orbZ: 0, distortion: 0.2,
           immediateRender: false,
-          scrollTrigger: { trigger: '#manifesto', start: 'top bottom', end: 'top top', scrub: 2.5 } }
+          scrollTrigger: { trigger: '#manifesto', start: 'top bottom', end: 'top top', scrub: 1.0 } }
       ))
 
       // Fold 3b: disperse from CENTER (orbX=0)
       triggers.push(gsap.to(state,
         { transition: 1, globalOpacity: 0.3,
-          scrollTrigger: { trigger: '#manifesto', start: 'top top', end: 'bottom center', scrub: 2.5 } }
+          scrollTrigger: { trigger: '#manifesto', start: 'top top', end: 'bottom center', scrub: 1.0 } }
       ))
 
       // Fold 4: reconverge from center
@@ -456,12 +459,12 @@ export function WebGLBackground() {
         { transition: 1, globalOpacity: 0.3, orbX: 0, orbY: 0, orbZ: 0, distortion: 0.2 },
         { transition: 0, globalOpacity: 1, orbX: 2.5, orbY: -0.5, orbZ: 0, distortion: 0.2,
           immediateRender: false,
-          scrollTrigger: { trigger: '#resultados', start: 'top bottom', end: 'bottom center', scrub: 2.5 } }
+          scrollTrigger: { trigger: '#resultados', start: 'top bottom', end: 'bottom center', scrub: 1.0 } }
       ))
 
       triggers.push(gsap.to(state,
         { distortion: 0.4,
-          scrollTrigger: { trigger: '#contato', start: 'top bottom', end: 'center center', scrub: 2.5 } }
+          scrollTrigger: { trigger: '#contato', start: 'top bottom', end: 'center center', scrub: 1.0 } }
       ))
     }).catch(err => {
       console.error('[WebGLBackground] Falha ao carregar textura da Terra:', err)

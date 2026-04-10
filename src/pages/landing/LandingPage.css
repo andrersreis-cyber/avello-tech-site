@@ -58,7 +58,7 @@
 .cta__sub,
 .proof__num,
 .proof__label {
-  text-shadow: 0 0 40px rgba(0,0,0,.9), 0 0 80px rgba(0,0,0,.7), 0 2px 4px rgba(0,0,0,.5);
+  text-shadow: 0 2px 8px rgba(0,0,0,.85);
 }
 
 /* Sections must be transparent so WebGL shows through */
